@@ -44,7 +44,7 @@ async function main() {
 			}
 
 			logger.info(`Using large health potion (current HP: ${currentHp})...`);
-			await wowApi.useItem(syncData.player.id, largeHpPotion.userItemId);
+			await wowApi.useItem(syncData.player.id, largeHpPotion.userItemId).catch(() => {});
 		}
 
 		async function addStats(syncData: SyncResponse) {
