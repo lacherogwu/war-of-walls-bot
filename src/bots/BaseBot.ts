@@ -1,4 +1,4 @@
-import type { WarOfWalls } from '../api/WarOfWalls';
+import type { SyncResponse, WarOfWalls } from '../api/WarOfWalls';
 import { CombatController } from '../combat/CombatController';
 import { logger } from '../utils/logger';
 import { delay } from '../utils/time';
@@ -6,18 +6,47 @@ import { COMBAT_CONFIG } from '../constants';
 
 export type BotStatus = 'idle' | 'traveling' | 'waiting' | 'attacking' | 'resting' | 'error';
 
+export type BotHook = (syncData: SyncResponse) => void | Promise<void>;
+
+export type BotHooks = {
+	beforeAttack?: BotHook[];
+	afterAttack?: BotHook[];
+	cycleStarted?: BotHook[];
+	cycleCompleted?: BotHook[];
+	battleStarted?: BotHook[];
+	battleEnded?: BotHook[];
+};
+
+export type BaseBotOptions = {
+	hooks?: BotHooks;
+};
+
 /**
  * BaseBot provides common functionality for all bot types
  */
 export abstract class BaseBot {
 	protected wowApi: WarOfWalls;
 	protected combatController: CombatController;
+	protected hooks: BotHooks;
 	protected status: BotStatus = 'idle';
 	protected cycleCount = 0;
 
-	constructor(wowApi: WarOfWalls) {
+	constructor(wowApi: WarOfWalls, options?: BaseBotOptions) {
 		this.wowApi = wowApi;
-		this.combatController = new CombatController(wowApi);
+		this.hooks = options?.hooks || {};
+		this.combatController = new CombatController(wowApi, this.hooks);
+	}
+
+	/**
+	 * Execute hooks for a specific event
+	 */
+	protected async executeHooks(hookName: keyof BotHooks, syncData: SyncResponse): Promise<void> {
+		const hooks = this.hooks[hookName];
+		if (!hooks || hooks.length === 0) return;
+
+		for (const hook of hooks) {
+			await hook(syncData);
+		}
 	}
 
 	/**

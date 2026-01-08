@@ -1,5 +1,5 @@
 import pMap from 'p-map';
-import { WarOfWalls } from './api/WarOfWalls';
+import { WarOfWalls, type SyncResponse } from './api/WarOfWalls';
 import { PvEBot } from './bots/PvEBot';
 import { PvPShadowBot } from './bots/PvPShadowBot';
 import { CombatController } from './combat/CombatController';
@@ -41,10 +41,34 @@ async function main() {
 		// Initialize and start PvE bot
 		// const pveBot = new PvEBot(wowApi, CONFIG.pveBot);
 		// await pveBot.start();
+
+		const MIN_HEATLH = 250;
+
+		async function findAndUseLargeHpPotion(syncData: SyncResponse) {
+			const currentHp = syncData.player.health.current;
+			if (currentHp >= MIN_HEATLH) {
+				return;
+			}
+
+			const LARGE_HP_POTION_ID = 'potion-heal-large';
+			const allConsumables = [...(syncData.consumables.unequipped ?? []), ...(syncData.consumables.equipped ?? [])];
+			const largeHpPotion = allConsumables.find(c => c.id === LARGE_HP_POTION_ID);
+			if (!largeHpPotion) {
+				logger.warn('No large health potions available!');
+				return;
+			}
+
+			logger.info(`Using large health potion (current HP: ${currentHp})...`);
+			await wowApi.useItem(syncData.player.id, largeHpPotion.userItemId);
+		}
+
 		const bot = new PvPShadowBot(wowApi, {
-			minHealth: 250,
+			minHealth: MIN_HEATLH,
 			levelRange: 5,
-			useHpPotions: true,
+			hooks: {
+				afterAttack: [findAndUseLargeHpPotion],
+				cycleStarted: [findAndUseLargeHpPotion],
+			},
 		});
 		await bot.start();
 	} catch (error) {
@@ -68,7 +92,8 @@ process.on('SIGTERM', () => {
 main();
 
 // const wowApi = new WarOfWalls(CONFIG.token);
+// await wowApi.useItem('cmk2j8pb800qts601jdse9mrd', 'cmk4ktctg001xs601ask141bk');
 // const itemId = 'potion-heal-large';
-// await wowApi.buyItem(itemId);
-// for (let i = 0; i < 100; i++) {
+// for (let i = 0; i < 40; i++) {
+// 	wowApi.buyItem(itemId).catch(() => {});
 // }

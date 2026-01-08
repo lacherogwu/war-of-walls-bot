@@ -163,15 +163,7 @@ export class WarOfWalls {
 	 */
 	async sync(): Promise<SyncResponse> {
 		try {
-			const res = await this.#client
-				.get<SyncResponse>('sync', {
-					searchParams: {
-						sinceChat: new Date().toISOString(),
-						sinceWhisper: new Date().toISOString(),
-						inventoryHash: '0',
-					},
-				})
-				.json();
+			const res = await this.#client.get<SyncResponse>('sync').json();
 			return res;
 		} catch (error) {
 			logger.error('Failed to sync game state', error);
@@ -242,7 +234,12 @@ export class WarOfWalls {
 	}
 
 	async joinShadowBattle(levelRange: number): Promise<JoinBattleResponse> {
-		await this.joinArenaQueue(levelRange);
+		await this.joinArenaQueue(levelRange).catch(err => {
+			if (err?.message?.toLowerCase()?.includes('already in queue')) {
+				return;
+			}
+			throw err;
+		});
 		return await this.skipArenaQueue();
 	}
 
@@ -269,10 +266,21 @@ export class WarOfWalls {
 	}
 
 	async useItem(targetId: string, userItemId: string): Promise<void> {
-		const res = await this.#client
+		await this.#client
 			.post('equipment/use-item', {
 				json: {
 					targetId,
+					userItemId,
+				},
+			})
+			.json();
+	}
+
+	async equipItem(slot: string, userItemId: string): Promise<void> {
+		const res = await this.#client
+			.post('equipment/equip', {
+				json: {
+					slot,
 					userItemId,
 				},
 			})
@@ -323,7 +331,7 @@ type TravelDestination = {
 	timedMessage: null;
 };
 
-type SyncResponse = {
+export type SyncResponse = {
 	success: boolean;
 	version: string;
 	timestamp: number;
@@ -452,7 +460,7 @@ type SyncResponse = {
 					}>;
 				}>;
 		  };
-	arena: { status: 'idle' };
+	arena: { status: string };
 	challenges: { sent: any[]; received: any[] };
 	friends: any;
 	partyInvites: { sent: any[]; received: any[] };
@@ -461,10 +469,19 @@ type SyncResponse = {
 	status: any;
 	activeBattleCounts: { pvp: number; pve: number; total: number };
 	xpConfig: { pveDamageMultiplier: number; pvpDamageMultiplier: number };
-	consumables: { equipped: null; unequipped: null; inventoryHash: '0' };
+	consumables: { equipped: Consumable[] | null; unequipped: Consumable[] | null; inventoryHash: string };
 	buffs: any;
 	scrollData: { joinableBattles: any[] };
 	quests: any;
+};
+
+type Consumable = {
+	id: string;
+	userItemId: string;
+	name: string;
+	description: string;
+	slot: string;
+	createdAt: string;
 };
 
 export type AttackResponse = {

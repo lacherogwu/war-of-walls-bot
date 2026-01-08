@@ -1,12 +1,11 @@
 import type { WarOfWalls } from '../api/WarOfWalls';
-import { BaseBot } from './BaseBot';
+import { BaseBot, type BaseBotOptions } from './BaseBot';
 import { logger } from '../utils/logger';
 import { delay } from '../utils/time';
 
-export type PvPShadowBotOptions = {
+export type PvPShadowBotOptions = BaseBotOptions & {
 	minHealth: number;
 	levelRange?: number;
-	useHpPotions?: boolean;
 };
 
 /**
@@ -17,7 +16,7 @@ export class PvPShadowBot extends BaseBot {
 	private opts: PvPShadowBotOptions;
 
 	constructor(wowApi: WarOfWalls, opts: PvPShadowBotOptions) {
-		super(wowApi);
+		super(wowApi, opts);
 		this.opts = opts;
 		this.validateOptions();
 	}
@@ -40,6 +39,10 @@ export class PvPShadowBot extends BaseBot {
 
 		logger.info(`Starting Shadow PvP cycle #${this.cycleCount}`);
 		logger.divider();
+
+		// Execute cycleStarted hooks
+		const syncData = await this.wowApi.sync();
+		await this.executeHooks('cycleStarted', syncData);
 
 		// Check health and battle status before starting
 		const { health, inBattle } = await this.wowApi.getPlayerState();
@@ -64,6 +67,8 @@ export class PvPShadowBot extends BaseBot {
 		}
 
 		logger.success(`Shadow PvP cycle #${this.cycleCount} complete!`);
+		// Execute cycleCompleted hooks
+		await this.executeHooks('cycleCompleted', syncData);
 		logger.divider();
 	}
 

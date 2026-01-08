@@ -1,10 +1,10 @@
 import type { WarOfWalls } from '../api/WarOfWalls';
-import { BaseBot } from './BaseBot';
+import { BaseBot, type BaseBotOptions } from './BaseBot';
 import { logger } from '../utils/logger';
 import { delay } from '../utils/time';
 import { COMBAT_CONFIG } from '../constants';
 
-export type PvEBotOptions = {
+export type PvEBotOptions = BaseBotOptions & {
 	targetPath: number[];
 	restPath: number[];
 	minHealth: number;
@@ -18,7 +18,7 @@ export class PvEBot extends BaseBot {
 	private opts: PvEBotOptions;
 
 	constructor(wowApi: WarOfWalls, opts: PvEBotOptions) {
-		super(wowApi);
+		super(wowApi, opts);
 		this.opts = opts;
 		this.validateOptions();
 	}
@@ -76,6 +76,10 @@ export class PvEBot extends BaseBot {
 		logger.info(`Starting PvE cycle #${this.cycleCount}`);
 		logger.divider();
 
+		// Execute cycleStarted hooks
+		const initialSyncData = await this.wowApi.sync();
+		await this.executeHooks('cycleStarted', initialSyncData);
+
 		// Check health and battle status before starting
 		const { hasEnoughHealth, inBattle } = await this.checkPlayerState();
 		if (!hasEnoughHealth) {
@@ -101,6 +105,9 @@ export class PvEBot extends BaseBot {
 		await this.travelPath(this.opts.restPath, 'Returning to rest area');
 
 		logger.success(`PvE cycle #${this.cycleCount} complete!`);
+		// Execute cycleCompleted hooks
+		const finalSyncData = await this.wowApi.sync();
+		await this.executeHooks('cycleCompleted', finalSyncData);
 		logger.divider();
 	}
 
@@ -117,8 +124,8 @@ export class PvEBot extends BaseBot {
 			} catch (err) {
 				this.status = 'error';
 				logger.error('Error during bot execution:', err instanceof Error ? err.message : err);
-				logger.warn('Restarting in 10 seconds...');
-				await delay(10000);
+				logger.warn('Restarting in 2 seconds...');
+				await delay(2000);
 			}
 		}
 	}

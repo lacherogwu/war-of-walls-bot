@@ -1,4 +1,5 @@
-import type { WarOfWalls } from '../api/WarOfWalls';
+import type { SyncResponse, WarOfWalls } from '../api/WarOfWalls';
+import type { BotHooks } from '../bots/BaseBot';
 import { logger } from '../utils/logger';
 import { generateCombatPositions } from '../utils/random';
 import { delay } from '../utils/time';
@@ -10,9 +11,23 @@ import { COMBAT_CONFIG, getPositionName } from '../constants';
  */
 export class CombatController {
 	#wowApi: WarOfWalls;
+	#hooks: BotHooks;
 
-	constructor(wowApi: WarOfWalls) {
+	constructor(wowApi: WarOfWalls, hooks: BotHooks = {}) {
 		this.#wowApi = wowApi;
+		this.#hooks = hooks;
+	}
+
+	/**
+	 * Execute hooks for a specific event
+	 */
+	async #executeHooks(hookName: keyof BotHooks, syncData: SyncResponse): Promise<void> {
+		const hooks = this.#hooks[hookName];
+		if (!hooks || hooks.length === 0) return;
+
+		for (const hook of hooks) {
+			await hook(syncData);
+		}
 	}
 
 	/**
@@ -32,6 +47,7 @@ export class CombatController {
 		logger.divider();
 
 		let turnCount = 0;
+		let isFirstTurn = true;
 
 		while (true) {
 			const syncData = await this.#wowApi.sync();
@@ -39,8 +55,15 @@ export class CombatController {
 			// Check if battle ended
 			if (!syncData.battle.inBattle) {
 				logger.success('Battle ended!');
+				await this.#executeHooks('battleEnded', syncData);
 				logger.divider();
 				break;
+			}
+
+			// Execute battleStarted hook on first turn
+			if (isFirstTurn) {
+				await this.#executeHooks('battleStarted', syncData);
+				isFirstTurn = false;
 			}
 
 			const { myTeam, id: battleId, participants } = syncData.battle;
@@ -50,6 +73,9 @@ export class CombatController {
 				logger.error('No target found in battle');
 				throw new Error('No target found in battle');
 			}
+
+			// Execute beforeAttack hooks
+			await this.#executeHooks('beforeAttack', syncData);
 
 			// Generate attack positions
 			const { attackPos, defPos1, defPos2 } = generateCombatPositions();
@@ -62,6 +88,10 @@ export class CombatController {
 
 			// Log battle results
 			this.#logBattleResults(attackResponse, target.maxHealth, syncData.player.health.max);
+
+			// Execute afterAttack hooks
+			const afterAttackData = { ...syncData, attackResponse };
+			await this.#executeHooks('afterAttack', afterAttackData);
 
 			await delay(COMBAT_CONFIG.ATTACK_DELAY);
 		}
