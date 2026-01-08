@@ -1,4 +1,4 @@
-import { WarOfWalls } from './api/WarOfWalls';
+import { WarOfWalls, type PlayerStat, type SyncResponse } from './api/WarOfWalls';
 import { logger } from './utils/logger';
 import { PvPShadowBot } from './bots/PvPShadowBot';
 import { PvEBot } from './bots/PvEBot';
@@ -10,19 +10,67 @@ async function main() {
 		logger.info('War of Walls Bot v2.0');
 		logger.divider();
 
-		for (const [username, token] of Object.entries(users).filter(([name]) => ['elran', 'shimi'].includes(name))) {
+		for (const { username, password, token } of Object.values(users).filter(({ username }) => username === 'elran')) {
 			// Initialize API client
 			const wowApi = new WarOfWalls(token, {
 				auth: {
 					username,
-					password: '26314471As',
+					password,
 				},
 			});
 
+			/* =========== Constants =========== */
+			const MIN_HEATLH = 500;
+			const LEVEL_RANGE = 5;
+			/* ================================ */
+
+			async function findAndUseLargeHpPotion(syncData: SyncResponse) {
+				const currentHp = syncData.player.health.current;
+				if (currentHp >= MIN_HEATLH) {
+					return;
+				}
+
+				const LARGE_HP_POTION_ID = 'potion-heal-large';
+				const allConsumables = [...(syncData.consumables.unequipped ?? []), ...(syncData.consumables.equipped ?? [])];
+				const largeHpPotion = allConsumables.find(c => c.id === LARGE_HP_POTION_ID);
+				if (!largeHpPotion) {
+					logger.warn('No large health potions available!');
+					return;
+				}
+
+				logger.info(`Using large health potion (current HP: ${currentHp})...`);
+				await wowApi.useItem(syncData.player.id, largeHpPotion.userItemId);
+			}
+
+			async function addStats(syncData: SyncResponse) {
+				const STAT_POINT_LIMIT = 100;
+				const { statPoints, baseStats } = syncData.player;
+				if (statPoints < 1) return;
+
+				const statToUpdateOrder: PlayerStat[] = ['luck', 'vitality', 'strength', 'endurance', 'wisdom', 'dexterity'];
+				let statToUpdate;
+				for (const stat of statToUpdateOrder) {
+					if ((baseStats[stat] ?? 0) < STAT_POINT_LIMIT) {
+						statToUpdate = stat;
+						break;
+					}
+				}
+				if (!statToUpdate) return;
+
+				for (let i = 0; i < statPoints; i++) {
+					await wowApi.addStat(statToUpdate).catch(() => {});
+				}
+			}
+
 			// Initialize and start attack bot
 			const bot = new PvPShadowBot(wowApi, {
-				minHealth: 1,
-				levelRange: 7,
+				minHealth: MIN_HEATLH,
+				levelRange: LEVEL_RANGE,
+				hooks: {
+					afterAttack: [findAndUseLargeHpPotion],
+					cycleStarted: [findAndUseLargeHpPotion],
+					battleEnded: [addStats],
+				},
 			});
 			bot.start();
 
@@ -52,22 +100,9 @@ process.on('SIGTERM', () => {
 
 // Start the bot
 main();
-// import itemsRes from '../items-res.json';
 
-// const items = itemsRes.items.filter(item => item.buyPrice < 1 || item.buyPrice > 870);
-// console.log(`About to purchase ${items.length}/${itemsRes.items.length} items`);
-// await pMap(
-// 	items,
-// 	async (item, i) => {
-// 		try {
-// 			const res = await wowApi.buy(item.id);
-// 			console.log(`✅ ‰Succeed buying ${item.id} (${i + 1}/${items.length})`);
-// 			console.log(res);
-// 		} catch (err) {
-// 			console.log(`❌ Failed buying ${item.id} (${i + 1}/${items.length}):`, err instanceof Error ? err.message : err);
-// 		}
-// 	},
-// 	{
-// 		concurrency: 15,
-// 	},
-// );
+// const wowApi = new WarOfWalls(users.elran.token);
+// for (let i = 0; i < 999; i++) {
+// 	await wowApi.reduceStat('luck');
+// 	await wowApi.addStat('vitality');
+// }

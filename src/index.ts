@@ -1,28 +1,10 @@
 import pMap from 'p-map';
-import { WarOfWalls, type SyncResponse } from './api/WarOfWalls';
+import { WarOfWalls, type PlayerStat, type SyncResponse } from './api/WarOfWalls';
 import { PvEBot } from './bots/PvEBot';
 import { PvPShadowBot } from './bots/PvPShadowBot';
 import { CombatController } from './combat/CombatController';
 import { logger } from './utils/logger';
 import users from '../users.json';
-
-// Configuration
-const CONFIG = {
-	token: users.asaf,
-	pveBot: {
-		targetPath: [
-			10, //
-			11,
-			28,
-		], // Destination IDs to reach battle zone
-		restPath: [
-			11,
-			10, //
-			3,
-		], // Destination IDs to return to rest area
-		minHealth: 130, // Minimum health required to start a battle
-	},
-};
 
 async function main() {
 	try {
@@ -31,10 +13,10 @@ async function main() {
 		logger.divider();
 
 		// Initialize API client
-		const wowApi = new WarOfWalls(CONFIG.token, {
+		const wowApi = new WarOfWalls(users.asaf.token, {
 			auth: {
-				username: 'asaf',
-				password: '26314471As',
+				username: users.asaf.username,
+				password: users.asaf.password,
 			},
 		});
 
@@ -42,7 +24,10 @@ async function main() {
 		// const pveBot = new PvEBot(wowApi, CONFIG.pveBot);
 		// await pveBot.start();
 
-		const MIN_HEATLH = 250;
+		/* =========== Constants =========== */
+		const MIN_HEATLH = 500;
+		const LEVEL_RANGE = 5;
+		/* ================================ */
 
 		async function findAndUseLargeHpPotion(syncData: SyncResponse) {
 			const currentHp = syncData.player.health.current;
@@ -62,12 +47,33 @@ async function main() {
 			await wowApi.useItem(syncData.player.id, largeHpPotion.userItemId);
 		}
 
+		async function addStats(syncData: SyncResponse) {
+			const STAT_POINT_LIMIT = 100;
+			const { statPoints, baseStats } = syncData.player;
+			if (statPoints < 1) return;
+
+			const statToUpdateOrder: PlayerStat[] = ['luck', 'vitality', 'strength', 'endurance', 'wisdom', 'dexterity'];
+			let statToUpdate;
+			for (const stat of statToUpdateOrder) {
+				if ((baseStats[stat] ?? 0) < STAT_POINT_LIMIT) {
+					statToUpdate = stat;
+					break;
+				}
+			}
+			if (!statToUpdate) return;
+
+			for (let i = 0; i < statPoints; i++) {
+				await wowApi.addStat(statToUpdate).catch(() => {});
+			}
+		}
+
 		const bot = new PvPShadowBot(wowApi, {
 			minHealth: MIN_HEATLH,
-			levelRange: 5,
+			levelRange: LEVEL_RANGE,
 			hooks: {
 				afterAttack: [findAndUseLargeHpPotion],
 				cycleStarted: [findAndUseLargeHpPotion],
+				battleEnded: [addStats],
 			},
 		});
 		await bot.start();
@@ -91,9 +97,10 @@ process.on('SIGTERM', () => {
 // Start the bot
 main();
 
-// const wowApi = new WarOfWalls(CONFIG.token);
-// await wowApi.useItem('cmk2j8pb800qts601jdse9mrd', 'cmk4ktctg001xs601ask141bk');
+// const wowApi = new WarOfWalls(users.asaf.token);
 // const itemId = 'potion-heal-large';
-// for (let i = 0; i < 40; i++) {
-// 	wowApi.buyItem(itemId).catch(() => {});
+// for (let i = 0; i < 500; i++) {
+// 	wowApi.buyItem(itemId).catch(err => {
+// 		console.log(err);
+// 	});
 // }
