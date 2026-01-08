@@ -2,6 +2,8 @@
 
 An automated bot framework for the [War of Walls](https://knights-il.com/game) browser game.
 
+![demo](assets/demo.png)
+
 ## ⚠️ Disclaimer
 
 **THIS PROJECT IS FOR EDUCATIONAL PURPOSES ONLY**
