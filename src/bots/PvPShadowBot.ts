@@ -6,6 +6,8 @@ import { delay } from '../utils/time';
 export type PvPShadowBotOptions = BaseBotOptions & {
 	minHealth: number;
 	levelRange?: number;
+	/** delay in milliseconds before entering shadow battle and after entering battle queue */
+	enterShadowBattleDelay?: number;
 };
 
 /**
@@ -34,42 +36,55 @@ export class PvPShadowBot extends BaseBot {
 	 * Execute a single shadow PvP cycle
 	 */
 	protected async executeCycle(): Promise<void> {
-		this.cycleCount++;
-		this.status = 'idle';
-
-		logger.info(`Starting Shadow PvP cycle #${this.cycleCount}`);
-		logger.divider();
-
-		// Execute cycleStarted hooks
 		const syncData = await this.wowApi.sync();
-		await this.executeHooks('cycleStarted', syncData);
+		try {
+			this.cycleCount++;
+			this.status = 'idle';
 
-		// Check health and battle status before starting
-		const { health, inBattle } = await this.wowApi.getPlayerState();
-		const hasEnoughHealth = health.current >= this.opts.minHealth;
-		if (!inBattle && !hasEnoughHealth) {
-			await delay(5000);
-			return;
+			logger.info(`Starting Shadow PvP cycle #${this.cycleCount}`);
+			logger.divider();
+
+			// Execute cycleStarted hooks
+			await this.executeHooks('cycleStarted', syncData);
+
+			// Check health and battle status before starting
+			const { health, inBattle } = await this.wowApi.getPlayerState();
+			const hasEnoughHealth = health.current >= this.opts.minHealth;
+			if (!inBattle && !hasEnoughHealth) {
+				await delay(5000);
+				return;
+			}
+
+			// Execute battle cycle
+			if (inBattle) {
+				// Already in battle, skip travel and waiting
+				this.status = 'attacking';
+				await this.combatController.executeAttackLoop();
+			} else {
+				if ((this.opts.enterShadowBattleDelay ?? 0) > 0) {
+					const { enterShadowBattleDelay } = this.opts;
+					await this.wowApi.joinArenaQueue(this.opts.levelRange ?? 2);
+					setTimeout(async () => {
+						const { inBattle } = await this.wowApi.getPlayerState();
+						if (!inBattle) {
+							await this.wowApi.skipArenaQueue();
+						}
+					}, enterShadowBattleDelay);
+				} else {
+					await this.wowApi.joinShadowBattle(this.opts.levelRange ?? 2);
+				}
+				this.status = 'waiting';
+				await this.combatController.waitForBattle();
+
+				this.status = 'attacking';
+				await this.combatController.executeAttackLoop();
+			}
+		} finally {
+			logger.success(`Shadow PvP cycle #${this.cycleCount} complete!`);
+			// Execute cycleCompleted hooks
+			await this.executeHooks('cycleCompleted', syncData);
+			logger.divider();
 		}
-
-		// Execute battle cycle
-		if (inBattle) {
-			// Already in battle, skip travel and waiting
-			this.status = 'attacking';
-			await this.combatController.executeAttackLoop();
-		} else {
-			await this.wowApi.joinShadowBattle(this.opts.levelRange ?? 2);
-			this.status = 'waiting';
-			await this.combatController.waitForBattle();
-
-			this.status = 'attacking';
-			await this.combatController.executeAttackLoop();
-		}
-
-		logger.success(`Shadow PvP cycle #${this.cycleCount} complete!`);
-		// Execute cycleCompleted hooks
-		await this.executeHooks('cycleCompleted', syncData);
-		logger.divider();
 	}
 
 	/**

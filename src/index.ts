@@ -70,6 +70,7 @@ async function main() {
 		const bot = new PvPShadowBot(wowApi, {
 			minHealth: MIN_HEATLH,
 			levelRange: LEVEL_RANGE,
+			enterShadowBattleDelay: 10000,
 			hooks: {
 				// afterAttack: [findAndUseLargeHpPotion],
 				// cycleStarted: [findAndUseLargeHpPotion],

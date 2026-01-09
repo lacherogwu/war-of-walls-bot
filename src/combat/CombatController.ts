@@ -86,9 +86,9 @@ export class CombatController {
 
 			const attack = async () => {
 				const attackResponse = await this.#wowApi.attack(battleId, target.id, attackPos, [defPos1, defPos2]);
+				if (!attackResponse.success) return;
 				if (!attackResponse.resolved) {
-					logger.warn(`Attack not yet resolved, waiting for target ${attackResponse.waiting.targetName} (ID: ${attackResponse.waiting.targetId}) until ${attackResponse.waiting.deadline}`);
-					await delay(3000);
+					await delay(COMBAT_CONFIG.ATTACK_DELAY * 2);
 					return attack();
 				}
 				return attackResponse;
@@ -96,7 +96,9 @@ export class CombatController {
 			const attackResponse = await attack();
 
 			// Log battle results
-			this.#logBattleResults(attackResponse, target.maxHealth, syncData.player.health.max);
+			if (attackResponse) {
+				this.#logBattleResults(attackResponse, target.maxHealth, syncData.player.health.max);
+			}
 
 			// Execute afterAttack hooks
 			const afterAttackData = { ...syncData, attackResponse };
