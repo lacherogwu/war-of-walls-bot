@@ -1,4 +1,4 @@
-import type { SyncResponse, WarOfWalls } from '../api/WarOfWalls';
+import type { AttackResponse, SyncResponse, WarOfWalls } from '../api/WarOfWalls';
 import type { BotHooks } from '../bots/BaseBot';
 import { logger } from '../utils/logger';
 import { generateCombatPositions } from '../utils/random';
@@ -84,7 +84,16 @@ export class CombatController {
 			turnCount++;
 			logger.battle(`Turn ${turnCount} - Attacking ${getPositionName(attackPos)}, defending ${getPositionName(defPos1)} & ${getPositionName(defPos2)}`);
 
-			const attackResponse = await this.#wowApi.attack(battleId, target.id, attackPos, [defPos1, defPos2]);
+			const attack = async () => {
+				const attackResponse = await this.#wowApi.attack(battleId, target.id, attackPos, [defPos1, defPos2]);
+				if (!attackResponse.resolved) {
+					logger.warn(`Attack not yet resolved, waiting for target ${attackResponse.waiting.targetName} (ID: ${attackResponse.waiting.targetId}) until ${attackResponse.waiting.deadline}`);
+					await delay(3000);
+					return attack();
+				}
+				return attackResponse;
+			};
+			const attackResponse = await attack();
 
 			// Log battle results
 			this.#logBattleResults(attackResponse, target.maxHealth, syncData.player.health.max);
@@ -125,7 +134,8 @@ export class CombatController {
 	/**
 	 * Log detailed battle results
 	 */
-	#logBattleResults(response: any, targetMaxHp: number, playerMaxHp: number): void {
+	#logBattleResults(response: AttackResponse, targetMaxHp: number, playerMaxHp: number): void {
+		if (!response.resolved) return;
 		const { youDealt, youReceived, targetHealth, yourHealth } = response.result;
 
 		// Format damage dealt

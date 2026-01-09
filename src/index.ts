@@ -25,8 +25,8 @@ async function main() {
 		// await pveBot.start();
 
 		/* =========== Constants =========== */
-		const MIN_HEATLH = 500;
-		const LEVEL_RANGE = 5;
+		const MIN_HEATLH = 20;
+		const LEVEL_RANGE = 1;
 		/* ================================ */
 
 		async function findAndUseLargeHpPotion(syncData: SyncResponse) {
@@ -71,9 +71,9 @@ async function main() {
 			minHealth: MIN_HEATLH,
 			levelRange: LEVEL_RANGE,
 			hooks: {
-				afterAttack: [findAndUseLargeHpPotion],
-				cycleStarted: [findAndUseLargeHpPotion],
-				battleEnded: [addStats],
+				// afterAttack: [findAndUseLargeHpPotion],
+				// cycleStarted: [findAndUseLargeHpPotion],
+				// battleEnded: [addStats],
 			},
 		});
 		await bot.start();
@@ -97,10 +97,13 @@ process.on('SIGTERM', () => {
 // Start the bot
 main();
 
-// const wowApi = new WarOfWalls(users.asaf.token);
+const wowApi = new WarOfWalls(users.asaf.token);
 // const itemId = 'potion-heal-large';
 // for (let i = 0; i < 500; i++) {
 // 	wowApi.buyItem(itemId).catch(err => {
 // 		console.log(err);
 // 	});
 // }
+
+// const combatController = new CombatController(wowApi);
+// await combatController.executeAttackLoop();

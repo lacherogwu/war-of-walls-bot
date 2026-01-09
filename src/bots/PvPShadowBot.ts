@@ -47,7 +47,7 @@ export class PvPShadowBot extends BaseBot {
 		// Check health and battle status before starting
 		const { health, inBattle } = await this.wowApi.getPlayerState();
 		const hasEnoughHealth = health.current >= this.opts.minHealth;
-		if (!hasEnoughHealth) {
+		if (!inBattle && !hasEnoughHealth) {
 			await delay(5000);
 			return;
 		}

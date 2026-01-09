@@ -217,15 +217,21 @@ export class WarOfWalls {
 		console.log(res);
 	}
 
-	async joinArenaQueue(levelRange: number) {
-		const res = await this.#client
-			.post('arena/queue', {
-				json: {
-					levelRange,
-				},
-			})
-			.json();
-		return res;
+	async joinArenaQueue(levelRange: number): Promise<void> {
+		try {
+			await this.#client
+				.post('arena/queue', {
+					json: {
+						levelRange,
+					},
+				})
+				.json();
+		} catch (err: any) {
+			if (err?.message?.toLowerCase()?.includes('already in queue')) {
+				return;
+			}
+			throw err;
+		}
 	}
 
 	async skipArenaQueue() {
@@ -234,12 +240,7 @@ export class WarOfWalls {
 	}
 
 	async joinShadowBattle(levelRange: number): Promise<JoinBattleResponse> {
-		await this.joinArenaQueue(levelRange).catch(err => {
-			if (err?.message?.toLowerCase()?.includes('already in queue')) {
-				return;
-			}
-			throw err;
-		});
+		await this.joinArenaQueue(levelRange);
 		return await this.skipArenaQueue();
 	}
 
@@ -484,9 +485,8 @@ type Consumable = {
 	createdAt: string;
 };
 
-export type AttackResponse = {
-	success: boolean;
-	resolved: boolean;
+type ResolvedAttack = {
+	resolved: true;
 	result: {
 		youDealt: {
 			damage: number;
@@ -511,6 +511,18 @@ export type AttackResponse = {
 		targetStreak: number;
 	};
 };
+type UnresolvedAttack = {
+	resolved: false;
+	waiting: {
+		targetId: string;
+		targetName: string;
+		deadline: string;
+	};
+};
+
+export type AttackResponse = {
+	success: boolean;
+} & (ResolvedAttack | UnresolvedAttack);
 
 export type PlayerStat = 'strength' | 'dexterity' | 'vitality' | 'endurance' | 'luck' | 'wisdom';
 
