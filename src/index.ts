@@ -26,7 +26,7 @@ async function main() {
 
 		/* =========== Constants =========== */
 		const MIN_HEATLH = 20;
-		const LEVEL_RANGE = 1;
+		const LEVEL_RANGE = 0;
 		/* ================================ */
 
 		async function findAndUseLargeHpPotion(syncData: SyncResponse) {
@@ -70,7 +70,7 @@ async function main() {
 		const bot = new PvPShadowBot(wowApi, {
 			minHealth: MIN_HEATLH,
 			levelRange: LEVEL_RANGE,
-			enterShadowBattleDelay: 10000,
+			enterShadowBattleDelay: 99999,
 			hooks: {
 				// afterAttack: [findAndUseLargeHpPotion],
 				// cycleStarted: [findAndUseLargeHpPotion],

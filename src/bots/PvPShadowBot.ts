@@ -1,6 +1,6 @@
 import type { WarOfWalls } from '../api/WarOfWalls';
 import { BaseBot, type BaseBotOptions } from './BaseBot';
-import { logger } from '../utils/logger';
+import { logger, type Logger } from '../utils/logger';
 import { delay } from '../utils/time';
 
 export type PvPShadowBotOptions = BaseBotOptions & {
@@ -8,6 +8,7 @@ export type PvPShadowBotOptions = BaseBotOptions & {
 	levelRange?: number;
 	/** delay in milliseconds before entering shadow battle and after entering battle queue */
 	enterShadowBattleDelay?: number;
+	logger?: Logger;
 };
 
 /**
@@ -21,6 +22,10 @@ export class PvPShadowBot extends BaseBot {
 		super(wowApi, opts);
 		this.opts = opts;
 		this.validateOptions();
+	}
+
+	get #logger(): Logger {
+		return this.opts.logger ?? logger;
 	}
 
 	/**
@@ -41,8 +46,8 @@ export class PvPShadowBot extends BaseBot {
 			this.cycleCount++;
 			this.status = 'idle';
 
-			logger.info(`Starting Shadow PvP cycle #${this.cycleCount}`);
-			logger.divider();
+			this.#logger.info(`Starting Shadow PvP cycle #${this.cycleCount}`);
+			this.#logger.divider();
 
 			// Execute cycleStarted hooks
 			await this.executeHooks('cycleStarted', syncData);
@@ -61,29 +66,33 @@ export class PvPShadowBot extends BaseBot {
 				this.status = 'attacking';
 				await this.combatController.executeAttackLoop();
 			} else {
+				this.#logger.info(`not in battle, entering...`);
 				if ((this.opts.enterShadowBattleDelay ?? 0) > 0) {
+					this.#logger.info(`waiting ${this.opts.enterShadowBattleDelay}ms before entering shadow battle...`);
 					const { enterShadowBattleDelay } = this.opts;
 					await this.wowApi.joinArenaQueue(this.opts.levelRange ?? 2);
 					setTimeout(async () => {
 						const { inBattle } = await this.wowApi.getPlayerState();
 						if (!inBattle) {
-							await this.wowApi.skipArenaQueue();
+							await this.wowApi.skipArenaQueue().catch(() => {});
 						}
 					}, enterShadowBattleDelay);
 				} else {
+					this.#logger.info(`entering shadow battle immediately...`);
 					await this.wowApi.joinShadowBattle(this.opts.levelRange ?? 2);
 				}
 				this.status = 'waiting';
+				this.#logger.info('Waiting for battle to start...');
 				await this.combatController.waitForBattle();
 
 				this.status = 'attacking';
 				await this.combatController.executeAttackLoop();
 			}
 		} finally {
-			logger.success(`Shadow PvP cycle #${this.cycleCount} complete!`);
+			this.#logger.success(`Shadow PvP cycle #${this.cycleCount} complete!`);
 			// Execute cycleCompleted hooks
 			await this.executeHooks('cycleCompleted', syncData);
-			logger.divider();
+			this.#logger.divider();
 		}
 	}
 
@@ -91,16 +100,16 @@ export class PvPShadowBot extends BaseBot {
 	 * Start the Shadow PvP bot
 	 */
 	async start(): Promise<void> {
-		logger.info('Shadow PvP Bot starting...');
-		logger.divider();
+		this.#logger.info('Shadow PvP Bot starting...');
+		this.#logger.divider();
 
 		while (true) {
 			try {
 				await this.executeCycle();
 			} catch (err) {
 				this.status = 'error';
-				logger.error('Error during bot execution:', err instanceof Error ? err.message : err);
-				logger.warn('Restarting in 2 seconds...');
+				this.#logger.error('Error during bot execution:', err instanceof Error ? err.message : err);
+				this.#logger.warn('Restarting in 2 seconds...');
 				await delay(2000);
 			}
 		}

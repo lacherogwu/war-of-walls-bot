@@ -1,5 +1,5 @@
 import { WarOfWalls, type PlayerStat, type SyncResponse } from './api/WarOfWalls';
-import { logger } from './utils/logger';
+import { Logger, logger } from './utils/logger';
 import { PvPShadowBot } from './bots/PvPShadowBot';
 import { PvEBot } from './bots/PvEBot';
 import users from '../users.json';
@@ -10,7 +10,15 @@ async function main() {
 		logger.info('War of Walls Bot v2.0');
 		logger.divider();
 
-		for (const { username, password, token } of Object.values(users).filter(({ username }) => username === 'elran')) {
+		const activeUsers = [
+			users.EIN, //
+			users.ahk,
+			users.avimov,
+			users.elran,
+			users.shimi,
+		];
+
+		for (const { username, password, token } of activeUsers) {
 			// Initialize API client
 			const wowApi = new WarOfWalls(token, {
 				auth: {
@@ -20,8 +28,8 @@ async function main() {
 			});
 
 			/* =========== Constants =========== */
-			const MIN_HEATLH = 500;
-			const LEVEL_RANGE = 5;
+			const MIN_HEATLH = 20;
+			const LEVEL_RANGE = 0;
 			/* ================================ */
 
 			async function findAndUseLargeHpPotion(syncData: SyncResponse) {
@@ -62,15 +70,18 @@ async function main() {
 				}
 			}
 
+			const logger = new Logger({ label: username });
 			// Initialize and start attack bot
 			const bot = new PvPShadowBot(wowApi, {
 				minHealth: MIN_HEATLH,
 				levelRange: LEVEL_RANGE,
 				hooks: {
-					afterAttack: [findAndUseLargeHpPotion],
-					cycleStarted: [findAndUseLargeHpPotion],
-					battleEnded: [addStats],
+					// afterAttack: [findAndUseLargeHpPotion],
+					// cycleStarted: [findAndUseLargeHpPotion],
+					// battleEnded: [addStats],
 				},
+				enterShadowBattleDelay: 999999,
+				logger,
 			});
 			bot.start();
 

@@ -1,6 +1,9 @@
 type LogLevel = 'info' | 'success' | 'warn' | 'error' | 'debug';
+type LoggerOptions = {
+	label?: string;
+};
 
-class Logger {
+export class Logger {
 	private colors = {
 		info: '\x1b[36m', // Cyan
 		success: '\x1b[32m', // Green
@@ -10,6 +13,16 @@ class Logger {
 		reset: '\x1b[0m',
 		bold: '\x1b[1m',
 	};
+
+	#opts: LoggerOptions;
+
+	constructor(opts?: { label?: string }) {
+		this.#opts = opts ?? {};
+	}
+
+	get label(): string | undefined {
+		return this.#opts.label;
+	}
 
 	private formatTimestamp(): string {
 		const now = new Date();
@@ -21,8 +34,9 @@ class Logger {
 		const color = this.colors[level];
 		const prefix = `${this.colors.bold}${color}[${level.toUpperCase()}]${this.colors.reset}`;
 		const timePrefix = `${this.colors.debug}${timestamp}${this.colors.reset}`;
+		const labelPrefix = this.label ? `${this.colors.bold}[${this.label}]${this.colors.reset} ` : '';
 
-		console.log(`${timePrefix} ${prefix} ${message}`);
+		console.log(`${timePrefix} ${prefix} ${labelPrefix}${message}`);
 		if (data !== undefined) {
 			console.log(data);
 		}
@@ -52,7 +66,8 @@ class Logger {
 		const timestamp = this.formatTimestamp();
 		const prefix = `${this.colors.bold}\x1b[35m[BATTLE]${this.colors.reset}`; // Magenta
 		const timePrefix = `${this.colors.debug}${timestamp}${this.colors.reset}`;
-		console.log(`${timePrefix} ${prefix} ${message}`);
+		const labelPrefix = this.label ? `${this.colors.bold}[${this.label}]${this.colors.reset} ` : '';
+		console.log(`${timePrefix} ${prefix} ${labelPrefix}${message}`);
 		if (data !== undefined) {
 			console.log(data);
 		}
@@ -62,7 +77,8 @@ class Logger {
 		const timestamp = this.formatTimestamp();
 		const prefix = `${this.colors.bold}\x1b[34m[TRAVEL]${this.colors.reset}`; // Blue
 		const timePrefix = `${this.colors.debug}${timestamp}${this.colors.reset}`;
-		console.log(`${timePrefix} ${prefix} ${message}`);
+		const labelPrefix = this.label ? `${this.colors.bold}[${this.label}]${this.colors.reset} ` : '';
+		console.log(`${timePrefix} ${prefix} ${labelPrefix}${message}`);
 		if (data !== undefined) {
 			console.log(data);
 		}
